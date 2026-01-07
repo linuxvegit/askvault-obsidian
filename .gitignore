@@ -1,0 +1,18 @@
+# Excludes
+main.js
+*.js.map
+
+# Editor files
+.vscode/
+
+# OS files
+.DS_Store
+
+# Dependencies
+node_modules/
+
+# Output
+output/
+
+# Build files
+*.log

@@ -1,0 +1,643 @@
+/* Main container */
+.askvault-container {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	padding: 0;
+}
+
+/* Header */
+.askvault-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 10px 15px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.askvault-header h4 {
+	margin: 0;
+	font-size: 16px;
+	font-weight: 600;
+}
+
+.askvault-header-buttons {
+	display: flex;
+	gap: 8px;
+}
+
+.askvault-index-button,
+.askvault-clear-button,
+.askvault-threads-button {
+	padding: 5px 12px;
+	font-size: 12px;
+	border-radius: 4px;
+	background-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border: none;
+	cursor: pointer;
+}
+
+.askvault-clear-button {
+	background-color: var(--background-modifier-error);
+}
+
+.askvault-index-button:hover,
+.askvault-clear-button:hover,
+.askvault-threads-button:hover {
+	background-color: var(--interactive-accent-hover);
+}
+
+.askvault-index-button:disabled,
+.askvault-clear-button:disabled,
+.askvault-threads-button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+/* Threads container */
+.askvault-threads-container {
+	max-height: 300px;
+	overflow-y: auto;
+	background-color: var(--background-secondary);
+	border-bottom: 1px solid var(--background-modifier-border);
+	transition: max-height 0.3s ease;
+}
+
+.askvault-threads-container.askvault-threads-hidden {
+	max-height: 0;
+	overflow: hidden;
+}
+
+.askvault-threads-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 10px 15px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.askvault-threads-header h5 {
+	margin: 0;
+	font-size: 14px;
+	font-weight: 600;
+}
+
+.askvault-new-thread-button {
+	padding: 4px 10px;
+	font-size: 12px;
+	border-radius: 4px;
+	background-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border: none;
+	cursor: pointer;
+}
+
+.askvault-new-thread-button:hover {
+	background-color: var(--interactive-accent-hover);
+}
+
+.askvault-threads-list {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: 5px;
+}
+
+.askvault-thread-item {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 8px 10px;
+	border-radius: 4px;
+	cursor: pointer;
+	transition: background-color 0.2s;
+}
+
+.askvault-thread-item:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+.askvault-thread-item.active {
+	background-color: var(--background-modifier-active-hover);
+	border-left: 3px solid var(--interactive-accent);
+}
+
+.askvault-thread-info {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.askvault-thread-name {
+	font-size: 13px;
+	font-weight: 500;
+	color: var(--text-normal);
+}
+
+.askvault-thread-time {
+	font-size: 11px;
+	color: var(--text-muted);
+}
+
+.askvault-thread-actions {
+	display: flex;
+	gap: 4px;
+	opacity: 0;
+	transition: opacity 0.2s;
+}
+
+.askvault-thread-item:hover .askvault-thread-actions {
+	opacity: 1;
+}
+
+.askvault-thread-action-btn {
+	padding: 2px 6px;
+	font-size: 12px;
+	background: transparent;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 3px;
+	cursor: pointer;
+	transition: background-color 0.2s;
+}
+
+.askvault-thread-action-btn:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+/* Confirm dialog */
+.askvault-confirm-overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-color: rgba(0, 0, 0, 0.5);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 9999;
+}
+
+.askvault-confirm-dialog {
+	background-color: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	padding: 20px;
+	min-width: 300px;
+	max-width: 500px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.askvault-confirm-message {
+	font-size: 14px;
+	color: var(--text-normal);
+	margin-bottom: 16px;
+	line-height: 1.5;
+}
+
+.askvault-confirm-input {
+	width: 100%;
+	padding: 8px 12px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	background-color: var(--background-primary);
+	color: var(--text-normal);
+	font-family: var(--font-text);
+	font-size: 14px;
+	margin-bottom: 16px;
+	box-sizing: border-box;
+}
+
+.askvault-confirm-input:focus {
+	outline: none;
+	border-color: var(--interactive-accent);
+}
+
+.askvault-confirm-buttons {
+	display: flex;
+	gap: 10px;
+	justify-content: flex-end;
+}
+
+.askvault-confirm-btn {
+	padding: 6px 16px;
+	border-radius: 4px;
+	font-size: 13px;
+	cursor: pointer;
+	border: none;
+	font-weight: 500;
+	transition: background-color 0.2s;
+}
+
+.askvault-confirm-cancel {
+	background-color: var(--interactive-normal);
+	color: var(--text-normal);
+}
+
+.askvault-confirm-cancel:hover {
+	background-color: var(--interactive-hover);
+}
+
+.askvault-confirm-delete {
+	background-color: var(--background-modifier-error);
+	color: var(--text-on-accent);
+}
+
+.askvault-confirm-delete:hover {
+	background-color: var(--background-modifier-error-hover);
+}
+
+.askvault-confirm-ok {
+	background-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.askvault-confirm-ok:hover {
+	background-color: var(--interactive-accent-hover);
+}
+
+/* Messages container */
+.askvault-messages {
+	flex: 1;
+	overflow-y: auto;
+	padding: 15px;
+	display: flex;
+	flex-direction: column;
+	gap: 15px;
+}
+
+/* Message styles */
+.askvault-message {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+	max-width: 90%;
+}
+
+.askvault-user-message {
+	align-self: flex-end;
+}
+
+.askvault-assistant-message {
+	align-self: flex-start;
+}
+
+.askvault-message-label-container {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	justify-content: space-between;
+}
+
+.askvault-copy-btn {
+	padding: 2px 6px;
+	font-size: 12px;
+	background: transparent;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 3px;
+	cursor: pointer;
+	opacity: 0;
+	transition: opacity 0.2s, background-color 0.2s;
+}
+
+.askvault-assistant-message:hover .askvault-copy-btn {
+	opacity: 1;
+}
+
+.askvault-copy-btn:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+.askvault-copy-thread-button {
+	padding: 5px 12px;
+	font-size: 12px;
+	border-radius: 4px;
+	background-color: var(--interactive-normal);
+	color: var(--text-normal);
+	border: 1px solid var(--background-modifier-border);
+	cursor: pointer;
+}
+
+.askvault-copy-thread-button:hover {
+	background-color: var(--interactive-hover);
+}
+
+.askvault-copy-notice {
+	position: fixed;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	background-color: var(--background-primary);
+	color: var(--text-normal);
+	padding: 10px 20px;
+	border-radius: 6px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+	border: 1px solid var(--background-modifier-border);
+	z-index: 10000;
+	font-size: 14px;
+	animation: fadeInOut 2s ease;
+}
+
+@keyframes fadeInOut {
+	0% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+	10% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+	90% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+	100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+}
+
+.askvault-system-message {
+	align-self: center;
+	max-width: 100%;
+	text-align: center;
+}
+
+.askvault-message-label {
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--text-muted);
+	padding: 0 8px;
+}
+
+.askvault-message-text {
+	padding: 10px 12px;
+	border-radius: 8px;
+	line-height: 1.5;
+	word-wrap: break-word;
+}
+
+.askvault-user-message .askvault-message-text {
+	background-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.askvault-assistant-message .askvault-message-text {
+	background-color: var(--background-secondary);
+	color: var(--text-normal);
+}
+
+/* Markdown content styles */
+.askvault-markdown-content {
+	line-height: 1.6;
+}
+
+.askvault-markdown-content p {
+	margin: 0.5em 0;
+}
+
+.askvault-markdown-content p:first-child {
+	margin-top: 0;
+}
+
+.askvault-markdown-content p:last-child {
+	margin-bottom: 0;
+}
+
+.askvault-markdown-content code {
+	background-color: var(--code-background);
+	color: var(--code-normal);
+	padding: 0.2em 0.4em;
+	border-radius: 3px;
+	font-family: var(--font-monospace);
+	font-size: 0.9em;
+}
+
+.askvault-markdown-content pre {
+	background-color: var(--code-background);
+	padding: 10px;
+	border-radius: 5px;
+	overflow-x: auto;
+	margin: 0.5em 0;
+}
+
+.askvault-markdown-content pre code {
+	background-color: transparent;
+	padding: 0;
+}
+
+.askvault-markdown-content ul,
+.askvault-markdown-content ol {
+	margin: 0.5em 0;
+	padding-left: 1.5em;
+}
+
+.askvault-markdown-content li {
+	margin: 0.25em 0;
+}
+
+.askvault-markdown-content blockquote {
+	border-left: 3px solid var(--interactive-accent);
+	padding-left: 10px;
+	margin: 0.5em 0;
+	color: var(--text-muted);
+}
+
+.askvault-markdown-content h1,
+.askvault-markdown-content h2,
+.askvault-markdown-content h3,
+.askvault-markdown-content h4,
+.askvault-markdown-content h5,
+.askvault-markdown-content h6 {
+	margin: 0.8em 0 0.4em 0;
+	font-weight: 600;
+}
+
+.askvault-markdown-content h1 { font-size: 1.5em; }
+.askvault-markdown-content h2 { font-size: 1.3em; }
+.askvault-markdown-content h3 { font-size: 1.1em; }
+
+.askvault-markdown-content a {
+	color: var(--link-color);
+	text-decoration: none;
+}
+
+.askvault-markdown-content a:hover {
+	text-decoration: underline;
+}
+
+.askvault-markdown-content table {
+	border-collapse: collapse;
+	width: 100%;
+	margin: 0.5em 0;
+}
+
+.askvault-markdown-content th,
+.askvault-markdown-content td {
+	border: 1px solid var(--background-modifier-border);
+	padding: 6px 8px;
+	text-align: left;
+}
+
+.askvault-markdown-content th {
+	background-color: var(--background-secondary-alt);
+	font-weight: 600;
+}
+
+.askvault-markdown-content hr {
+	border: none;
+	border-top: 1px solid var(--background-modifier-border);
+	margin: 1em 0;
+}
+
+.askvault-system-message .askvault-message-text {
+	background-color: transparent;
+	color: var(--text-muted);
+	font-size: 13px;
+	font-style: italic;
+	padding: 5px;
+}
+
+/* Loading animation */
+.askvault-loading-message .askvault-message-text {
+	padding: 15px 12px;
+}
+
+.askvault-loading-dots {
+	display: flex;
+	gap: 6px;
+	align-items: center;
+	justify-content: flex-start;
+}
+
+.askvault-loading-dot {
+	width: 8px;
+	height: 8px;
+	background-color: var(--text-muted);
+	border-radius: 50%;
+	animation: loading-bounce 1.4s infinite ease-in-out both;
+}
+
+.askvault-loading-dot:nth-child(1) {
+	animation-delay: -0.32s;
+}
+
+.askvault-loading-dot:nth-child(2) {
+	animation-delay: -0.16s;
+}
+
+@keyframes loading-bounce {
+	0%, 80%, 100% {
+		transform: scale(0.8);
+		opacity: 0.5;
+	}
+	40% {
+		transform: scale(1.2);
+		opacity: 1;
+	}
+}
+
+/* Input container */
+.askvault-input-container {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 15px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.askvault-input {
+	width: 100%;
+	padding: 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	background-color: var(--background-primary);
+	color: var(--text-normal);
+	font-family: var(--font-text);
+	font-size: 14px;
+	resize: vertical;
+	min-height: 60px;
+}
+
+.askvault-input:focus {
+	outline: none;
+	border-color: var(--interactive-accent);
+}
+
+.askvault-input:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.askvault-send-button {
+	align-self: flex-end;
+	padding: 8px 20px;
+	border-radius: 4px;
+	background-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border: none;
+	cursor: pointer;
+	font-weight: 500;
+}
+
+.askvault-send-button:hover {
+	background-color: var(--interactive-accent-hover);
+}
+
+.askvault-send-button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+/* Progress bar styles */
+.askvault-progress-container {
+	padding: 15px;
+	margin: 10px 0;
+	border-radius: 8px;
+	background-color: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+}
+
+.askvault-progress-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 10px;
+}
+
+.askvault-progress-title {
+	font-weight: 600;
+	color: var(--text-normal);
+}
+
+.askvault-cancel-button {
+	padding: 4px 10px;
+	font-size: 12px;
+	border-radius: 4px;
+	background-color: var(--interactive-normal);
+	color: var(--text-normal);
+	border: 1px solid var(--background-modifier-border);
+	cursor: pointer;
+}
+
+.askvault-cancel-button:hover {
+	background-color: var(--interactive-hover);
+}
+
+.askvault-cancel-button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.askvault-progress-bar-container {
+	width: 100%;
+	height: 20px;
+	background-color: var(--background-primary);
+	border-radius: 10px;
+	overflow: hidden;
+	margin-bottom: 8px;
+}
+
+.askvault-progress-bar {
+	height: 100%;
+	background-color: var(--interactive-accent);
+	transition: width 0.3s ease;
+	border-radius: 10px;
+}
+
+.askvault-progress-text {
+	font-size: 12px;
+	color: var(--text-muted);
+	text-align: center;
+	word-wrap: break-word;
+}
