@@ -365,6 +365,11 @@
 	border-radius: 8px;
 	line-height: 1.5;
 	word-wrap: break-word;
+	user-select: text;
+	-webkit-user-select: text;
+	-moz-user-select: text;
+	-ms-user-select: text;
+	cursor: text;
 }
 
 .askvault-user-message .askvault-message-text {
@@ -486,6 +491,61 @@
 	font-size: 13px;
 	font-style: italic;
 	padding: 5px;
+}
+
+/* Sources section */
+.askvault-sources-container {
+	margin-top: 12px;
+	padding: 0 12px 8px 12px;
+}
+
+.askvault-sources-separator {
+	border: none;
+	border-top: 1px solid var(--background-modifier-border);
+	margin: 8px 0;
+}
+
+.askvault-sources-label {
+	font-weight: 600;
+	font-size: 13px;
+	color: var(--text-muted);
+	margin-bottom: 6px;
+}
+
+.askvault-sources-list {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.askvault-sources-list li {
+	margin: 0;
+}
+
+.askvault-source-link {
+	color: var(--link-color);
+	text-decoration: none;
+	font-size: 13px;
+	display: inline-flex;
+	align-items: center;
+	padding: 2px 4px;
+	border-radius: 3px;
+	transition: background-color 0.2s;
+	cursor: pointer;
+}
+
+.askvault-source-link:hover {
+	background-color: var(--background-modifier-hover);
+	text-decoration: underline;
+}
+
+.askvault-source-link:before {
+	content: '📄';
+	margin-right: 4px;
+	font-size: 12px;
 }
 
 /* Loading animation */

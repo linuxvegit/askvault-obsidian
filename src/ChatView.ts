@@ -211,26 +211,15 @@ export class ChatView extends ItemView {
 			// Get response from LLM with chat history
 			const response = await this.plugin.llmService.chat(message, context, chatHistory);
 
-			// Append source links to response
-			let responseWithSources = response;
-			if (relevantDocs.length > 0) {
-				responseWithSources += '\n\n---\n\n**Sources:**\n';
-				for (const doc of relevantDocs) {
-					// Remove .md extension for cleaner links
-					const linkPath = doc.path.replace(/\.md$/, '');
-					responseWithSources += `- [[${linkPath}]]\n`;
-				}
-			}
-
-			// Add messages to chat history
+			// Add messages to chat history (without sources in text)
 			currentThread.history.push({ role: 'user', content: message });
-			currentThread.history.push({ role: 'assistant', content: responseWithSources });
+			currentThread.history.push({ role: 'assistant', content: response });
 			currentThread.updatedAt = Date.now();
 			await this.saveThreads();
 
-			// Remove loading message and add actual response
+			// Remove loading message and add actual response with sources
 			this.removeLoadingMessage(loadingMessage);
-			this.addAssistantMessage(responseWithSources);
+			this.addAssistantMessage(response, relevantDocs);
 
 		} catch (error) {
 			console.error('Error sending message:', error);
@@ -251,7 +240,7 @@ export class ChatView extends ItemView {
 		this.scrollToBottom();
 	}
 
-	addAssistantMessage(text: string) {
+	addAssistantMessage(text: string, sources?: Array<{path: string, content: string}>) {
 		const messageDiv = this.messagesContainer.createDiv({ cls: 'askvault-message askvault-assistant-message' });
 		
 		const labelContainer = messageDiv.createDiv({ cls: 'askvault-message-label-container' });
@@ -269,8 +258,49 @@ export class ChatView extends ItemView {
 		
 		const contentDiv = messageDiv.createDiv({ cls: 'askvault-message-text askvault-markdown-content' });
 		
-		// Render markdown content
-		MarkdownRenderer.renderMarkdown(text, contentDiv, '', this.plugin);
+		// Render markdown content with proper source path for link resolution
+		MarkdownRenderer.render(this.plugin.app, text, contentDiv, '', this.plugin);
+		
+		// Add sources section if provided
+		if (sources && sources.length > 0) {
+			const sourcesDiv = messageDiv.createDiv({ cls: 'askvault-sources-container' });
+			
+			// Add separator
+			sourcesDiv.createEl('hr', { cls: 'askvault-sources-separator' });
+			
+			// Add "Sources:" label
+			const sourcesLabel = sourcesDiv.createEl('div', { 
+				text: 'Sources:',
+				cls: 'askvault-sources-label'
+			});
+			
+			// Create list of clickable links
+			const sourcesList = sourcesDiv.createEl('ul', { cls: 'askvault-sources-list' });
+			
+			for (const doc of sources) {
+				const listItem = sourcesList.createEl('li');
+				const link = listItem.createEl('a', {
+					text: doc.path.replace(/\.md$/, ''),
+					cls: 'askvault-source-link internal-link'
+				});
+				
+				// Add click handler to open the file
+				link.onclick = async (e) => {
+					e.preventDefault();
+					try {
+						// Try to open using openLinkText (handles various path formats)
+						await this.app.workspace.openLinkText(
+							doc.path.replace(/\.md$/, ''),
+							'',
+							false,
+							{ active: true }
+						);
+					} catch (error) {
+						console.error('Failed to open file:', doc.path, error);
+					}
+				};
+			}
+		}
 		
 		this.scrollToBottom();
 	}
