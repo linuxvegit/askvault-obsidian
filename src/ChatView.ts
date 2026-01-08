@@ -14,6 +14,7 @@ interface ChatThread {
 	history: ChatMessage[];
 	createdAt: number;
 	updatedAt: number;
+	isStreaming?: boolean;
 }
 
 export class ChatView extends ItemView {
@@ -33,6 +34,8 @@ export class ChatView extends ItemView {
 	private currentThreadId: string | null = null;
 	private showThreads: boolean = false;
 	private headerTitle: HTMLElement | null = null;
+	private streamingThreads: Map<string, boolean> = new Map();
+	private linkClickHandler: (e: MouseEvent) => void;
 
 	constructor(leaf: WorkspaceLeaf, plugin: AskVaultPlugin) {
 		super(leaf);
@@ -152,6 +155,10 @@ export class ChatView extends ItemView {
 		} else {
 			this.addSystemMessage('Welcome to Aks Vault! Click "Index Vault" to get started, then ask me anything about your vault.');
 		}
+
+		// Set up event delegation for internal links
+		this.linkClickHandler = this.handleLinkClick.bind(this);
+		container.addEventListener('click', this.linkClickHandler);
 	}
 
 	async sendMessage() {
@@ -182,9 +189,12 @@ export class ChatView extends ItemView {
 		// Clear input
 		this.messageInput.value = '';
 
-		// Disable input while processing
-		this.messageInput.disabled = true;
-		this.sendButton.disabled = true;
+		// Set streaming state for current thread
+		this.streamingThreads.set(currentThread.id, true);
+		currentThread.isStreaming = true;
+
+		// Update input state to show streaming status
+		this.setInputState(false, 'AI is responding...');
 
 		// Add loading message
 		const loadingMessage = this.addLoadingMessage();
@@ -208,27 +218,54 @@ export class ChatView extends ItemView {
 			// Get current thread's history
 			const chatHistory = currentThread.history;
 
-			// Get response from LLM with chat history
-			const response = await this.plugin.llmService.chat(message, context, chatHistory);
+			// Remove loading message and create placeholder for streaming
+			this.removeLoadingMessage(loadingMessage);
+			const messageElement = this.createAssistantMessageElement();
 
-			// Add messages to chat history (without sources in text)
+			// Get response from LLM with streaming
+			let fullResponse = '';
+			const response = await this.plugin.llmService.chatStream(
+				message, 
+				context, 
+				chatHistory,
+				(chunk: string) => {
+					fullResponse += chunk;
+					this.updateAssistantMessage(messageElement, fullResponse);
+				}
+			);
+
+			// Format sources as markdown and append to response
+			let sourcesText = '\n\n---\n\n**Sources:**\n\n';
+			for (const doc of relevantDocs) {
+				// Use wiki-link format for better Obsidian integration
+				const fileName = doc.path.replace(/\.md$/, '');
+				sourcesText += `- [[${fileName}]]\n`;
+			}
+
+			// Append sources to the response
+			const fullResponseWithSources = response + sourcesText;
+			fullResponse += sourcesText;
+
+			// Update the message with sources included
+			this.updateAssistantMessage(messageElement, fullResponseWithSources);
+
+			// Add messages to chat history (with sources in text)
 			currentThread.history.push({ role: 'user', content: message });
-			currentThread.history.push({ role: 'assistant', content: response });
+			currentThread.history.push({ role: 'assistant', content: fullResponseWithSources });
 			currentThread.updatedAt = Date.now();
 			await this.saveThreads();
-
-			// Remove loading message and add actual response with sources
-			this.removeLoadingMessage(loadingMessage);
-			this.addAssistantMessage(response, relevantDocs);
 
 		} catch (error) {
 			console.error('Error sending message:', error);
 			this.removeLoadingMessage(loadingMessage);
 			this.addSystemMessage('Error: ' + error.message);
 		} finally {
+			// Clear streaming state
+			this.streamingThreads.set(currentThread.id, false);
+			currentThread.isStreaming = false;
+
 			// Re-enable input
-			this.messageInput.disabled = false;
-			this.sendButton.disabled = false;
+			this.setInputState(true, 'Ask a question about your vault...');
 			this.messageInput.focus();
 		}
 	}
@@ -237,6 +274,90 @@ export class ChatView extends ItemView {
 		const messageDiv = this.messagesContainer.createDiv({ cls: 'askvault-message askvault-user-message' });
 		messageDiv.createDiv({ cls: 'askvault-message-label', text: 'You' });
 		messageDiv.createDiv({ cls: 'askvault-message-text', text });
+		this.scrollToBottom();
+	}
+
+	createAssistantMessageElement(): HTMLElement {
+		const messageDiv = this.messagesContainer.createDiv({ cls: 'askvault-message askvault-assistant-message' });
+		
+		const labelContainer = messageDiv.createDiv({ cls: 'askvault-message-label-container' });
+		labelContainer.createDiv({ cls: 'askvault-message-label', text: 'Assistant' });
+		
+		// Add copy button (initially copies empty text)
+		const copyBtn = labelContainer.createEl('button', {
+			text: '📋',
+			cls: 'askvault-copy-btn',
+			attr: { 'aria-label': 'Copy message' }
+		});
+		
+		// Create content div
+		const contentDiv = messageDiv.createDiv({ cls: 'askvault-message-text askvault-markdown-content' });
+		contentDiv.setAttribute('data-message-text', '');
+		
+		// Set copy button handler
+		copyBtn.onclick = () => {
+			const text = contentDiv.getAttribute('data-message-text') || '';
+			this.copyToClipboard(text);
+		};
+		
+		this.scrollToBottom();
+		return messageDiv;
+	}
+
+	updateAssistantMessage(messageElement: HTMLElement, text: string) {
+		const contentDiv = messageElement.querySelector('.askvault-markdown-content') as HTMLElement;
+		if (!contentDiv) return;
+		
+		// Store the raw text for copying
+		contentDiv.setAttribute('data-message-text', text);
+		
+		// Clear and re-render markdown
+		contentDiv.empty();
+		MarkdownRenderer.render(this.plugin.app, text, contentDiv, '/', this.plugin);
+		
+		this.scrollToBottom();
+	}
+
+	addSourcesToMessage(messageElement: HTMLElement, sources: Array<{path: string, content: string}>) {
+		if (!sources || sources.length === 0) return;
+		
+		const sourcesDiv = messageElement.createDiv({ cls: 'askvault-sources-container' });
+		
+		// Add separator
+		sourcesDiv.createEl('hr', { cls: 'askvault-sources-separator' });
+		
+		// Add "Sources:" label
+		sourcesDiv.createEl('div', { 
+			text: 'Sources:',
+			cls: 'askvault-sources-label'
+		});
+		
+		// Create list of clickable links
+		const sourcesList = sourcesDiv.createEl('ul', { cls: 'askvault-sources-list' });
+		
+		for (const doc of sources) {
+			const listItem = sourcesList.createEl('li');
+			const link = listItem.createEl('a', {
+				text: doc.path.replace(/\.md$/, ''),
+				cls: 'askvault-source-link internal-link'
+			});
+			
+			// Add click handler to open the file
+			link.onclick = async (e) => {
+				e.preventDefault();
+				try {
+					await this.app.workspace.openLinkText(
+						doc.path.replace(/\.md$/, ''),
+						'',
+						false,
+						{ active: true }
+					);
+				} catch (error) {
+					console.error('Failed to open file:', doc.path, error);
+				}
+			};
+		}
+		
 		this.scrollToBottom();
 	}
 
@@ -258,8 +379,8 @@ export class ChatView extends ItemView {
 		
 		const contentDiv = messageDiv.createDiv({ cls: 'askvault-message-text askvault-markdown-content' });
 		
-		// Render markdown content with proper source path for link resolution
-		MarkdownRenderer.render(this.plugin.app, text, contentDiv, '', this.plugin);
+		// Render markdown content with vault root path for proper link resolution
+		MarkdownRenderer.render(this.plugin.app, text, contentDiv, '/', this.plugin);
 		
 		// Add sources section if provided
 		if (sources && sources.length > 0) {
@@ -376,15 +497,8 @@ export class ChatView extends ItemView {
 		this.addSystemMessage('Chat history cleared. Ask me anything about your vault.');
 		
 		// Ensure input is enabled and focused
-		if (this.messageInput) {
-			this.messageInput.disabled = false;
-			this.messageInput.removeAttribute('disabled');
-			this.messageInput.focus();
-		}
-		if (this.sendButton) {
-			this.sendButton.disabled = false;
-			this.sendButton.removeAttribute('disabled');
-		}
+		this.setInputState(true, 'Ask a question about your vault...');
+		this.messageInput.focus();
 	}
 
 	getCurrentThread(): ChatThread | null {
@@ -399,6 +513,46 @@ export class ChatView extends ItemView {
 				this.headerTitle.setText(`Ask Vault - ${currentThread.name}`);
 			} else {
 				this.headerTitle.setText('Ask Vault');
+			}
+		}
+	}
+
+	setInputState(enabled: boolean, placeholder: string) {
+		if (this.messageInput) {
+			this.messageInput.disabled = !enabled;
+			this.messageInput.placeholder = placeholder;
+			if (enabled) {
+				this.messageInput.removeAttribute('disabled');
+				this.messageInput.removeAttribute('readonly');
+			}
+		}
+		if (this.sendButton) {
+			this.sendButton.disabled = !enabled;
+			if (enabled) {
+				this.sendButton.removeAttribute('disabled');
+			}
+		}
+	}
+
+	private handleLinkClick(e: MouseEvent) {
+		// Check if the clicked element is an internal link
+		const target = e.target as HTMLElement;
+		const link = target.closest('a.internal-link');
+		
+		if (link) {
+			e.preventDefault();
+			e.stopPropagation();
+			
+			// Get the link text or href
+			const linkText = link.getAttribute('data-href') || link.textContent || '';
+			
+			if (linkText) {
+				try {
+					// Open the link using Obsidian's API
+					this.app.workspace.openLinkText(linkText, '/', false, { active: true });
+				} catch (error) {
+					console.error('Failed to open link:', linkText, error);
+				}
 			}
 		}
 	}
@@ -596,20 +750,17 @@ export class ChatView extends ItemView {
 		// Update title
 		this.updateTitle();
 		
-		// Ensure input is enabled and focusable
-		if (this.messageInput) {
-			this.messageInput.disabled = false;
-			this.messageInput.removeAttribute('disabled');
-			this.messageInput.removeAttribute('readonly');
+		// Restore correct input state based on streaming status
+		const isStreaming = this.streamingThreads.get(thread.id) || false;
+		if (isStreaming) {
+			this.setInputState(false, 'AI is responding...');
+		} else {
+			this.setInputState(true, 'Ask a question about your vault...');
 			setTimeout(() => {
 				if (this.messageInput) {
 					this.messageInput.focus();
 				}
 			}, 100);
-		}
-		if (this.sendButton) {
-			this.sendButton.disabled = false;
-			this.sendButton.removeAttribute('disabled');
 		}
 	}
 
@@ -758,6 +909,10 @@ export class ChatView extends ItemView {
 	}
 
 	async onClose() {
-		// Clean up
+		// Remove event listener
+		const container = this.containerEl.children[1];
+		if (container && this.linkClickHandler) {
+			container.removeEventListener('click', this.linkClickHandler);
+		}
 	}
 }
