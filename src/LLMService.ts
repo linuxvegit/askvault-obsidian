@@ -58,6 +58,76 @@ export class LLMService {
 	}
 
 	/**
+	 * Call LLM with raw system + user prompt (no chat history, no streaming).
+	 * Used for wiki operations: ingest, lint, query-retrieval.
+	 */
+	async callLLMRaw(systemPrompt: string, userPrompt: string, maxTokens: number = 4000): Promise<string> {
+		if (!this.settings.apiKey) {
+			throw new Error('API key not configured. Please set it in settings.');
+		}
+
+		const model = this.settings.model === 'custom'
+			? this.settings.customModel
+			: this.settings.model;
+
+		if (!model) {
+			throw new Error('Model name is required. Please configure a model in settings.');
+		}
+
+		if (this.settings.provider === 'openai') {
+			const endpoint = this.settings.openaiEndpoint || 'https://api.openai.com/v1';
+			const response = await fetch(`${endpoint}/chat/completions`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${this.settings.apiKey}`
+				},
+				body: JSON.stringify({
+					model,
+					messages: [
+						{ role: 'system', content: systemPrompt },
+						{ role: 'user', content: userPrompt }
+					],
+					max_tokens: maxTokens,
+					temperature: 0.3
+				})
+			});
+
+			if (!response.ok) {
+				const error = await response.text();
+				throw new Error(`OpenAI API error: ${error}`);
+			}
+
+			const data = await response.json();
+			return data.choices[0].message.content;
+		} else {
+			const endpoint = this.settings.claudeEndpoint || 'https://api.anthropic.com/v1';
+			const response = await fetch(`${endpoint}/messages`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'x-api-key': this.settings.apiKey,
+					'anthropic-version': '2023-06-01'
+				},
+				body: JSON.stringify({
+					model,
+					max_tokens: maxTokens,
+					system: systemPrompt,
+					messages: [{ role: 'user', content: userPrompt }]
+				})
+			});
+
+			if (!response.ok) {
+				const error = await response.text();
+				throw new Error(`Claude API error: ${error}`);
+			}
+
+			const data = await response.json();
+			return data.content[0].text;
+		}
+	}
+
+	/**
 	 * Call the LLM API with chat history support
 	 */
 	private async callLLMWithHistory(
