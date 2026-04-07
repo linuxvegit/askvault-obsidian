@@ -8,10 +8,12 @@ export interface AskVaultSettings {
 	customModel: string;
 	openaiEndpoint: string;
 	claudeEndpoint: string;
-	// Indexing filters
-	whitelistFolders: string[];
-	whitelistExtensions: string[];
-	blacklistFiles: string[];
+	// Wiki settings
+	wikiFolder: string;
+	sourceIncludeFolders: string[];
+	sourceExcludeFolders: string[];
+	sourceExtensions: string[];
+	autoUpdate: 'enabled' | 'disabled' | 'desktop-only' | 'mobile-only';
 }
 
 export const DEFAULT_SETTINGS: AskVaultSettings = {
@@ -21,9 +23,11 @@ export const DEFAULT_SETTINGS: AskVaultSettings = {
 	customModel: '',
 	openaiEndpoint: 'https://api.openai.com/v1',
 	claudeEndpoint: 'https://api.anthropic.com/v1',
-	whitelistFolders: [],
-	whitelistExtensions: ['.md'],
-	blacklistFiles: []
+	wikiFolder: 'wiki',
+	sourceIncludeFolders: [],
+	sourceExcludeFolders: [],
+	sourceExtensions: ['.md'],
+	autoUpdate: 'enabled'
 };
 
 export class AskVaultSettingTab extends PluginSettingTab {
@@ -172,18 +176,31 @@ export class AskVaultSettingTab extends PluginSettingTab {
 				);
 		}
 
-		// Indexing Filters Section
-		containerEl.createEl('h2', { text: 'Indexing Filters' });
+		// Wiki Settings Section
+		containerEl.createEl('h2', { text: 'Wiki Settings' });
 
-		// Whitelist Folders
+		// Wiki Folder
 		new Setting(containerEl)
-			.setName('Whitelist Folders')
-			.setDesc('Only index files in these folders (comma-separated paths, e.g., "folder1, folder2/subfolder"). Leave empty to index all folders.')
+			.setName('Wiki Folder')
+			.setDesc('Folder within your vault where wiki pages are generated. Will be created if it does not exist.')
+			.addText(text => text
+				.setPlaceholder('wiki')
+				.setValue(this.plugin.settings.wikiFolder)
+				.onChange(async (value) => {
+					this.plugin.settings.wikiFolder = value.trim() || 'wiki';
+					await this.plugin.saveSettings();
+				})
+			);
+
+		// Source Include Folders
+		new Setting(containerEl)
+			.setName('Source Include Folders')
+			.setDesc('Only ingest files from these folders (comma-separated). Leave empty to ingest all folders except the wiki folder.')
 			.addTextArea(text => text
 				.setPlaceholder('e.g., Notes, Projects/Work')
-				.setValue(this.plugin.settings.whitelistFolders.join(', '))
+				.setValue(this.plugin.settings.sourceIncludeFolders.join(', '))
 				.onChange(async (value) => {
-					this.plugin.settings.whitelistFolders = value
+					this.plugin.settings.sourceIncludeFolders = value
 						.split(',')
 						.map(f => f.trim())
 						.filter(f => f.length > 0);
@@ -191,15 +208,31 @@ export class AskVaultSettingTab extends PluginSettingTab {
 				})
 			);
 
-		// Whitelist Extensions
+		// Source Exclude Folders
 		new Setting(containerEl)
-			.setName('Whitelist File Extensions')
-			.setDesc('Only index files with these extensions (comma-separated, e.g., ".md, .txt"). Include the dot.')
+			.setName('Source Exclude Folders')
+			.setDesc('Skip these folders during ingestion (comma-separated). The wiki folder is always excluded.')
+			.addTextArea(text => text
+				.setPlaceholder('e.g., Templates, Archive')
+				.setValue(this.plugin.settings.sourceExcludeFolders.join(', '))
+				.onChange(async (value) => {
+					this.plugin.settings.sourceExcludeFolders = value
+						.split(',')
+						.map(f => f.trim())
+						.filter(f => f.length > 0);
+					await this.plugin.saveSettings();
+				})
+			);
+
+		// Source Extensions
+		new Setting(containerEl)
+			.setName('Source File Extensions')
+			.setDesc('Only ingest files with these extensions (comma-separated). Include the dot.')
 			.addText(text => text
 				.setPlaceholder('.md, .txt')
-				.setValue(this.plugin.settings.whitelistExtensions.join(', '))
+				.setValue(this.plugin.settings.sourceExtensions.join(', '))
 				.onChange(async (value) => {
-					this.plugin.settings.whitelistExtensions = value
+					this.plugin.settings.sourceExtensions = value
 						.split(',')
 						.map(ext => ext.trim())
 						.filter(ext => ext.length > 0);
@@ -207,18 +240,18 @@ export class AskVaultSettingTab extends PluginSettingTab {
 				})
 			);
 
-		// Blacklist Files
+		// Auto Update
 		new Setting(containerEl)
-			.setName('Blacklist Files')
-			.setDesc('Exclude specific files from indexing. Supports wildcards: * (any characters), ? (single character). Examples: "*.template.md, Private/*, README.md"')
-			.addTextArea(text => text
-				.setPlaceholder('e.g., *.template.md, Templates/*, README.md')
-				.setValue(this.plugin.settings.blacklistFiles.join(', '))
+			.setName('Auto Update')
+			.setDesc('Automatically re-ingest source files when they are modified.')
+			.addDropdown(dropdown => dropdown
+				.addOption('enabled', 'Enabled (all platforms)')
+				.addOption('disabled', 'Disabled')
+				.addOption('desktop-only', 'Desktop only')
+				.addOption('mobile-only', 'Mobile only')
+				.setValue(this.plugin.settings.autoUpdate)
 				.onChange(async (value) => {
-					this.plugin.settings.blacklistFiles = value
-						.split(',')
-						.map(f => f.trim())
-						.filter(f => f.length > 0);
+					this.plugin.settings.autoUpdate = value as AskVaultSettings['autoUpdate'];
 					await this.plugin.saveSettings();
 				})
 			);
