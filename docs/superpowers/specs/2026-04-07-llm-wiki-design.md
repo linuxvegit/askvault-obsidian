@@ -89,6 +89,7 @@ interface AskVaultSettings {
   sourceIncludeFolders: string[];  // Folders to ingest from (empty = all non-wiki)
   sourceExcludeFolders: string[];  // Folders to skip during ingest
   sourceExtensions: string[];     // File extensions to ingest, default: [".md"]
+  autoUpdate: 'enabled' | 'disabled' | 'desktop-only' | 'mobile-only';  // default: "enabled"
 }
 ```
 
@@ -188,9 +189,17 @@ Change detection: WikiService parses `log.md` to find the latest ingest entry fo
 
 ### Incremental Update (Event-Driven)
 
-**Trigger:** Automatic — fires when source files are modified (editor loses focus / file saved). Also available as manual command.
+**Trigger:** Automatic — fires when source files are modified (editor loses focus / file saved). Also available as manual "Update" command in WikiView.
 
-**Event handling:**
+**Controlled by `autoUpdate` setting:**
+- `enabled` — event listeners active on all platforms (default)
+- `disabled` — no automatic updates; user must click "Update" manually
+- `desktop-only` — event listeners active only when `Platform.isDesktop` is true
+- `mobile-only` — event listeners active only when `Platform.isMobile` is true
+
+WikiService checks this setting on plugin load and registers/skips vault event listeners accordingly. The manual "Update" button in WikiView always works regardless of this setting.
+
+**Event handling (when active):**
 
 - `vault.on('modify', file)` — file in source folder modified → queue for re-ingest
 - `vault.on('create', file)` — new file in source folder → queue for ingest
