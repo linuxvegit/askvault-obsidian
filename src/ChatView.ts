@@ -87,13 +87,13 @@ export class ChatView extends ItemView {
 			this.toggleThreads();
 		};
 
-		// Create index button
-		const indexButton = headerButtons.createEl('button', { 
-			text: 'Index Vault',
+		// Create wiki button
+		const wikiButton = headerButtons.createEl('button', {
+			text: 'Wiki',
 			cls: 'askvault-index-button'
 		});
-		indexButton.onclick = async () => {
-			this.startIndexing();
+		wikiButton.onclick = async () => {
+			this.plugin.activateWikiView();
 		};
 
 		// Create threads container (initially hidden)
@@ -149,12 +149,7 @@ export class ChatView extends ItemView {
 		this.renderThreadsList();
 
 		// Add welcome message
-		const docCount = this.plugin.vectorService.getDocumentCount();
-		if (docCount > 0) {
-			this.addSystemMessage(`Welcome to Aks Vault! ${docCount} documents loaded from previous index. Ask me anything about your vault.`);
-		} else {
-			this.addSystemMessage('Welcome to Aks Vault! Click "Index Vault" to get started, then ask me anything about your vault.');
-		}
+		this.addSystemMessage('Welcome to Ask Vault! Open Wiki Manager to ingest your vault, then ask me anything.');
 
 		// Set up event delegation for internal links
 		this.linkClickHandler = this.handleLinkClick.bind(this);
@@ -200,17 +195,20 @@ export class ChatView extends ItemView {
 		const loadingMessage = this.addLoadingMessage();
 
 		try {
-			// Search vector database for relevant documents
-			const relevantDocs = await this.plugin.vectorService.search(message, 3);
+			// Find relevant wiki pages
+			const relevantPaths = await this.plugin.wikiService.findRelevantPages(message);
 
-			if (relevantDocs.length === 0) {
+			if (relevantPaths.length === 0) {
 				this.removeLoadingMessage(loadingMessage);
-				this.addAssistantMessage("I couldn't find any relevant information in your vault. Try indexing your files first.");
+				this.addAssistantMessage("I couldn't find any relevant information in your wiki. Try ingesting your source files first.");
 				return;
 			}
 
+			// Read relevant pages
+			const relevantDocs = await this.plugin.wikiService.getPageContents(relevantPaths);
+
 			// Prepare context from relevant documents
-			let context = 'Relevant documents:\n\n';
+			let context = 'Relevant wiki pages:\n\n';
 			for (const doc of relevantDocs) {
 				context += `File: ${doc.path}\n${doc.content}\n\n---\n\n`;
 			}
@@ -221,6 +219,7 @@ export class ChatView extends ItemView {
 			// Remove loading message and create placeholder for streaming
 			this.removeLoadingMessage(loadingMessage);
 			const messageElement = this.createAssistantMessageElement();
+			messageElement.setAttribute('data-question', message);
 
 			// Get response from LLM with streaming
 			let fullResponse = '';
@@ -289,7 +288,14 @@ export class ChatView extends ItemView {
 			cls: 'askvault-copy-btn',
 			attr: { 'aria-label': 'Copy message' }
 		});
-		
+
+		// Add Save to Wiki button
+		const saveWikiBtn = labelContainer.createEl('button', {
+			text: '📥',
+			cls: 'askvault-save-wiki-btn',
+			attr: { 'aria-label': 'Save to Wiki' }
+		});
+
 		// Create content div
 		const contentDiv = messageDiv.createDiv({ cls: 'askvault-message-text askvault-markdown-content' });
 		contentDiv.setAttribute('data-message-text', '');
@@ -314,7 +320,20 @@ export class ChatView extends ItemView {
 		// Clear and re-render markdown
 		contentDiv.empty();
 		MarkdownRenderer.render(this.plugin.app, text, contentDiv, '/', this.plugin);
-		
+
+		// Wire up Save to Wiki button
+		const saveBtn = messageElement.querySelector('.askvault-save-wiki-btn') as HTMLButtonElement;
+		if (saveBtn) {
+			const questionAttr = messageElement.getAttribute('data-question');
+			saveBtn.onclick = async () => {
+				if (questionAttr) {
+					await this.plugin.wikiService.saveQueryResult(questionAttr, text);
+					saveBtn.setText('Saved');
+					saveBtn.disabled = true;
+				}
+			};
+		}
+
 		this.scrollToBottom();
 	}
 
@@ -852,60 +871,6 @@ export class ChatView extends ItemView {
 				});
 			};
 		}
-	}
-
-	async startIndexing() {
-		// Create progress container
-		this.progressContainer = this.messagesContainer.createDiv({ cls: 'askvault-progress-container' });
-		
-		const progressHeader = this.progressContainer.createDiv({ cls: 'askvault-progress-header' });
-		progressHeader.createEl('span', { text: 'Indexing Vault', cls: 'askvault-progress-title' });
-		
-		this.cancelButton = progressHeader.createEl('button', { 
-			text: 'Cancel',
-			cls: 'askvault-cancel-button'
-		});
-		this.cancelButton.onclick = () => {
-			this.plugin.cancelIndexing();
-			if (this.cancelButton) {
-				this.cancelButton.disabled = true;
-				this.cancelButton.setText('Cancelling...');
-			}
-		};
-
-		const progressBarContainer = this.progressContainer.createDiv({ cls: 'askvault-progress-bar-container' });
-		this.progressBar = progressBarContainer.createDiv({ cls: 'askvault-progress-bar' });
-		this.progressBar.style.width = '0%';
-		
-		this.progressText = this.progressContainer.createDiv({ cls: 'askvault-progress-text' });
-		this.progressText.setText('Starting...');
-
-		this.scrollToBottom();
-
-		// Start indexing with progress callback
-		const startTime = Date.now();
-		await this.plugin.indexVaultFiles((current, total, fileName) => {
-			const percentage = Math.round((current / total) * 100);
-			if (this.progressBar) {
-				this.progressBar.style.width = `${percentage}%`;
-			}
-			if (this.progressText) {
-				const elapsed = Math.round((Date.now() - startTime) / 1000);
-				this.progressText.setText(`${current}/${total} - ${fileName} (${elapsed}s)`);
-			}
-		});
-
-		// Clean up progress UI
-		if (this.progressContainer) {
-			this.progressContainer.remove();
-			this.progressContainer = null;
-			this.progressBar = null;
-			this.progressText = null;
-			this.cancelButton = null;
-		}
-
-		const totalDocs = this.plugin.vectorService.getDocumentCount();
-		this.addSystemMessage(`Vault indexing complete! ${totalDocs} documents indexed.`);
 	}
 
 	async onClose() {
