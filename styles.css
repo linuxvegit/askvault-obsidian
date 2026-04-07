@@ -701,3 +701,155 @@
 	text-align: center;
 	word-wrap: break-word;
 }
+
+/* Wiki Manager */
+.askvault-wiki-container {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	padding: 0;
+}
+
+.askvault-wiki-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 10px 15px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.askvault-wiki-header h4 {
+	margin: 0;
+	font-size: 16px;
+	font-weight: 600;
+}
+
+.askvault-wiki-status {
+	padding: 8px 15px;
+	font-size: 13px;
+	color: var(--text-muted);
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.askvault-wiki-actions {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 8px;
+	padding: 12px 15px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.askvault-wiki-btn {
+	padding: 8px 12px;
+	font-size: 13px;
+	border-radius: 4px;
+	background-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border: none;
+	cursor: pointer;
+	font-weight: 500;
+}
+
+.askvault-wiki-btn:hover {
+	background-color: var(--interactive-accent-hover);
+}
+
+.askvault-wiki-progress.askvault-hidden {
+	display: none;
+}
+
+.askvault-wiki-progress {
+	padding: 12px 15px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.askvault-wiki-section-title {
+	padding: 8px 15px 4px;
+	margin: 0;
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--text-muted);
+}
+
+.askvault-wiki-activity {
+	padding: 0 15px 12px;
+	max-height: 200px;
+	overflow-y: auto;
+}
+
+.askvault-wiki-activity-item {
+	padding: 4px 0;
+	font-size: 12px;
+	color: var(--text-muted);
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.askvault-wiki-no-activity {
+	font-size: 12px;
+	color: var(--text-faint);
+	font-style: italic;
+}
+
+.askvault-wiki-lint-results {
+	padding: 0 15px 12px;
+	max-height: 300px;
+	overflow-y: auto;
+}
+
+.askvault-wiki-lint-issue {
+	padding: 8px;
+	margin-bottom: 6px;
+	background-color: var(--background-secondary);
+	border-radius: 4px;
+	font-size: 13px;
+	border-left: 3px solid var(--text-accent);
+}
+
+.askvault-wiki-lint-type {
+	font-weight: 600;
+	color: var(--text-accent);
+}
+
+.askvault-wiki-lint-page {
+	font-size: 11px;
+	color: var(--text-muted);
+	margin-top: 4px;
+}
+
+.askvault-wiki-lint-fix {
+	font-size: 11px;
+	color: var(--text-muted);
+	font-style: italic;
+	margin-top: 2px;
+}
+
+.askvault-wiki-lint-clean {
+	font-size: 13px;
+	color: var(--text-muted);
+	font-style: italic;
+}
+
+/* Save to Wiki button */
+.askvault-save-wiki-btn {
+	padding: 2px 6px;
+	font-size: 12px;
+	background: transparent;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 3px;
+	cursor: pointer;
+	opacity: 0;
+	transition: opacity 0.2s, background-color 0.2s;
+}
+
+.askvault-assistant-message:hover .askvault-save-wiki-btn {
+	opacity: 1;
+}
+
+.askvault-save-wiki-btn:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+.askvault-save-wiki-btn:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
