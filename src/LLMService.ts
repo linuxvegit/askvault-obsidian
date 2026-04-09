@@ -74,34 +74,60 @@ export class LLMService {
 			throw new Error('Model name is required. Please configure a model in settings.');
 		}
 
+		console.log('[AskVault] callLLMRaw request:', {
+			provider: this.settings.provider,
+			model,
+			maxTokens,
+			systemPromptLength: systemPrompt.length,
+			userPromptLength: userPrompt.length,
+			systemPromptPreview: systemPrompt.substring(0, 200) + '...',
+			userPromptPreview: userPrompt.substring(0, 200) + '...'
+		});
+
 		if (this.settings.provider === 'openai') {
 			const endpoint = this.settings.openaiEndpoint || 'https://api.openai.com/v1';
+			const requestBody = {
+				model,
+				messages: [
+					{ role: 'system', content: systemPrompt },
+					{ role: 'user', content: userPrompt }
+				],
+				max_tokens: maxTokens,
+				temperature: 0.3
+			};
+			console.log('[AskVault] OpenAI request URL:', `${endpoint}/chat/completions`);
+			console.log('[AskVault] OpenAI request body:', JSON.stringify(requestBody, null, 2).substring(0, 1000));
+
 			const response = await fetch(`${endpoint}/chat/completions`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
 					'Authorization': `Bearer ${this.settings.apiKey}`
 				},
-				body: JSON.stringify({
-					model,
-					messages: [
-						{ role: 'system', content: systemPrompt },
-						{ role: 'user', content: userPrompt }
-					],
-					max_tokens: maxTokens,
-					temperature: 0.3
-				})
+				body: JSON.stringify(requestBody)
 			});
 
 			if (!response.ok) {
 				const error = await response.text();
+				console.error('[AskVault] OpenAI API error:', response.status, error);
 				throw new Error(`OpenAI API error: ${error}`);
 			}
 
 			const data = await response.json();
-			return data.choices[0].message.content;
+			const result = data.choices[0].message.content;
+			console.log('[AskVault] OpenAI response preview:', result.substring(0, 300));
+			return result;
 		} else {
 			const endpoint = this.settings.claudeEndpoint || 'https://api.anthropic.com/v1';
+			const requestBody = {
+				model,
+				max_tokens: maxTokens,
+				system: systemPrompt,
+				messages: [{ role: 'user', content: userPrompt }]
+			};
+			console.log('[AskVault] Claude request URL:', `${endpoint}/messages`);
+			console.log('[AskVault] Claude request body:', JSON.stringify(requestBody, null, 2).substring(0, 1000));
+
 			const response = await fetch(`${endpoint}/messages`, {
 				method: 'POST',
 				headers: {
@@ -109,21 +135,19 @@ export class LLMService {
 					'x-api-key': this.settings.apiKey,
 					'anthropic-version': '2023-06-01'
 				},
-				body: JSON.stringify({
-					model,
-					max_tokens: maxTokens,
-					system: systemPrompt,
-					messages: [{ role: 'user', content: userPrompt }]
-				})
+				body: JSON.stringify(requestBody)
 			});
 
 			if (!response.ok) {
 				const error = await response.text();
+				console.error('[AskVault] Claude API error:', response.status, error);
 				throw new Error(`Claude API error: ${error}`);
 			}
 
 			const data = await response.json();
-			return data.content[0].text;
+			const result = data.content[0].text;
+			console.log('[AskVault] Claude response preview:', result.substring(0, 300));
+			return result;
 		}
 	}
 

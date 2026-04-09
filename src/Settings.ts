@@ -13,6 +13,8 @@ export interface AskVaultSettings {
 	sourceIncludeFolders: string[];
 	sourceExcludeFolders: string[];
 	sourceExtensions: string[];
+	sourceIncludeSuffixes: string[];
+	sourceExcludeSuffixes: string[];
 	autoUpdate: 'enabled' | 'disabled' | 'desktop-only' | 'mobile-only';
 }
 
@@ -27,6 +29,8 @@ export const DEFAULT_SETTINGS: AskVaultSettings = {
 	sourceIncludeFolders: [],
 	sourceExcludeFolders: [],
 	sourceExtensions: ['.md'],
+	sourceIncludeSuffixes: [],
+	sourceExcludeSuffixes: [],
 	autoUpdate: 'enabled'
 };
 
@@ -236,6 +240,38 @@ export class AskVaultSettingTab extends PluginSettingTab {
 						.split(',')
 						.map(ext => ext.trim())
 						.filter(ext => ext.length > 0);
+					await this.plugin.saveSettings();
+				})
+			);
+
+		// Include Suffixes
+		new Setting(containerEl)
+			.setName('Include File Suffixes')
+			.setDesc('Only ingest files whose names end with these suffixes (comma-separated). E.g., ".recipe.md, .note.md". Leave empty to include all.')
+			.addText(text => text
+				.setPlaceholder('e.g., .recipe.md, .note.md')
+				.setValue(this.plugin.settings.sourceIncludeSuffixes.join(', '))
+				.onChange(async (value) => {
+					this.plugin.settings.sourceIncludeSuffixes = value
+						.split(',')
+						.map(s => s.trim())
+						.filter(s => s.length > 0);
+					await this.plugin.saveSettings();
+				})
+			);
+
+		// Exclude Suffixes
+		new Setting(containerEl)
+			.setName('Exclude File Suffixes')
+			.setDesc('Skip files whose names end with these suffixes (comma-separated). E.g., ".template.md, .draft.md".')
+			.addText(text => text
+				.setPlaceholder('e.g., .template.md, .draft.md')
+				.setValue(this.plugin.settings.sourceExcludeSuffixes.join(', '))
+				.onChange(async (value) => {
+					this.plugin.settings.sourceExcludeSuffixes = value
+						.split(',')
+						.map(s => s.trim())
+						.filter(s => s.length > 0);
 					await this.plugin.saveSettings();
 				})
 			);

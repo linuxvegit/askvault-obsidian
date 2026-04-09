@@ -10,6 +10,7 @@ export class WikiView extends ItemView {
 	private progressContainer: HTMLElement | null = null;
 	private progressBar: HTMLElement | null = null;
 	private progressText: HTMLElement | null = null;
+	private cancelButton: HTMLButtonElement | null = null;
 	private activityEl: HTMLElement | null = null;
 	private lintResultsEl: HTMLElement | null = null;
 
@@ -72,6 +73,19 @@ export class WikiView extends ItemView {
 
 		// Progress area
 		this.progressContainer = container.createDiv({ cls: 'askvault-wiki-progress askvault-hidden' });
+		const progressHeader = this.progressContainer.createDiv({ cls: 'askvault-progress-header' });
+		progressHeader.createEl('span', { text: 'Processing...', cls: 'askvault-progress-title' });
+		this.cancelButton = progressHeader.createEl('button', {
+			text: 'Cancel',
+			cls: 'askvault-cancel-button'
+		});
+		this.cancelButton.onclick = () => {
+			this.plugin.wikiService.cancelIngest();
+			if (this.cancelButton) {
+				this.cancelButton.disabled = true;
+				this.cancelButton.setText('Cancelling...');
+			}
+		};
 		const progressBarContainer = this.progressContainer.createDiv({ cls: 'askvault-progress-bar-container' });
 		this.progressBar = progressBarContainer.createDiv({ cls: 'askvault-progress-bar' });
 		this.progressText = this.progressContainer.createDiv({ cls: 'askvault-progress-text' });
@@ -97,12 +111,19 @@ export class WikiView extends ItemView {
 		this.progressContainer.removeClass('askvault-hidden');
 		const pct = Math.round((progress.current / progress.total) * 100);
 		this.progressBar.style.width = `${pct}%`;
-		this.progressText.setText(`${progress.status}: ${progress.fileName} (${progress.current}/${progress.total})`);
+
+		const errSuffix = progress.errorCount ? ` | ${progress.errorCount} error(s)` : '';
+		const fileInfo = progress.fileName ? `${progress.fileName} ` : '';
+		this.progressText.setText(`${progress.status}: ${fileInfo}(${progress.current}/${progress.total})${errSuffix}`);
 	}
 
 	private hideProgress(): void {
 		if (!this.progressContainer) return;
 		this.progressContainer.addClass('askvault-hidden');
+		if (this.cancelButton) {
+			this.cancelButton.disabled = false;
+			this.cancelButton.setText('Cancel');
+		}
 	}
 
 	private async runIngest(): Promise<void> {
