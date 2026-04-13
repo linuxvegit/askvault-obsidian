@@ -379,9 +379,12 @@ export class WikiService {
 	private async ingestFile(file: TFile, schema: string, cachedIndex: string): Promise<string> {
 		const content = await this.vault.read(file);
 
-		const systemPrompt = `${schema}\n\n## Current Wiki Index\n${cachedIndex}\n\nYou are a wiki maintainer. Analyze the following source document and extract structured information. Return ONLY valid JSON with no markdown fences.`;
+		// Truncate index to avoid oversized prompts — ingest only needs index for context, not full listing
+		const truncatedIndex = cachedIndex.length > 5000 ? cachedIndex.substring(0, 5000) + '\n...(truncated)' : cachedIndex;
+		const systemPrompt = `${schema}\n\n## Current Wiki Index\n${truncatedIndex}\n\nYou are a wiki maintainer. Analyze the following source document and extract structured information. Return ONLY valid JSON with no markdown fences.`;
 
-		const userPrompt = `Source file: ${file.path}\n\n${content.substring(0, 50000)}\n\nReturn JSON in this exact format:\n{"summary":"<500 word summary>","entities":[{"name":"<name>","description":"<description>","facts":["<fact1>"],"relationships":["<relationship1>"]}],"concepts":[{"name":"<name>","description":"<description>","examples":["<example1>"]}],"crossReferences":[{"from":"<page>","to":"<page>","relationship":"<how they relate>"}]}`;
+		const sourceContent = content.substring(0, 15000);
+		const userPrompt = `Source file: ${file.path}\n\n${sourceContent}\n\nReturn JSON in this exact format:\n{"summary":"<brief summary>","entities":[{"name":"<name>","description":"<description>","facts":["<fact1>"],"relationships":["<relationship1>"]}],"concepts":[{"name":"<name>","description":"<description>","examples":["<example1>"]}],"crossReferences":[{"from":"<page>","to":"<page>","relationship":"<how they relate>"}]}`;
 
 		let result: IngestResult;
 		try {
