@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Modal, App } from 'obsidian';
 import AskVaultPlugin from '../main';
 import { LintIssue, WikiProgress } from './WikiService';
 
@@ -48,7 +48,7 @@ export class WikiView extends ItemView {
 		const actions = container.createDiv({ cls: 'askvault-wiki-actions' });
 
 		const ingestBtn = actions.createEl('button', {
-			text: 'Ingest All',
+			text: 'Ingest',
 			cls: 'askvault-wiki-btn'
 		});
 		ingestBtn.onclick = () => this.runIngest();
@@ -127,14 +127,29 @@ export class WikiView extends ItemView {
 	}
 
 	private async runIngest(): Promise<void> {
-		try {
-			await this.plugin.wikiService.ingest((progress) => this.showProgress(progress));
-		} catch (error) {
-			console.error('Ingest error:', error);
-		} finally {
-			this.hideProgress();
-			await this.refreshStats();
-			await this.loadActivity();
+		const hasLog = await this.plugin.wikiService.hasIngestLog();
+		if (hasLog) {
+			new IngestChoiceModal(this.plugin.app, async (forceAll) => {
+				try {
+					await this.plugin.wikiService.ingest((progress) => this.showProgress(progress), forceAll);
+				} catch (error) {
+					console.error('Ingest error:', error);
+				} finally {
+					this.hideProgress();
+					await this.refreshStats();
+					await this.loadActivity();
+				}
+			}).open();
+		} else {
+			try {
+				await this.plugin.wikiService.ingest((progress) => this.showProgress(progress));
+			} catch (error) {
+				console.error('Ingest error:', error);
+			} finally {
+				this.hideProgress();
+				await this.refreshStats();
+				await this.loadActivity();
+			}
 		}
 	}
 
@@ -217,5 +232,44 @@ export class WikiView extends ItemView {
 
 	async onClose() {
 		// No cleanup needed
+	}
+}
+
+class IngestChoiceModal extends Modal {
+	private onChoice: (forceAll: boolean) => void;
+
+	constructor(app: App, onChoice: (forceAll: boolean) => void) {
+		super(app);
+		this.onChoice = onChoice;
+	}
+
+	onOpen() {
+		const { contentEl } = this;
+		contentEl.createEl('h3', { text: 'Ingest Options' });
+		contentEl.createEl('p', { text: 'Previous ingest data found. How would you like to proceed?' });
+
+		const btnContainer = contentEl.createDiv({ cls: 'askvault-modal-buttons' });
+
+		const diffBtn = btnContainer.createEl('button', {
+			text: 'Ingest New & Changed',
+			cls: 'askvault-wiki-btn'
+		});
+		diffBtn.onclick = () => {
+			this.close();
+			this.onChoice(false);
+		};
+
+		const allBtn = btnContainer.createEl('button', {
+			text: 'Re-ingest All',
+			cls: 'askvault-wiki-btn'
+		});
+		allBtn.onclick = () => {
+			this.close();
+			this.onChoice(true);
+		};
+	}
+
+	onClose() {
+		this.contentEl.empty();
 	}
 }

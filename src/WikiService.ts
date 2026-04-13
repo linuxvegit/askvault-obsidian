@@ -1,7 +1,8 @@
-import { Vault, TFile, TAbstractFile, Platform } from 'obsidian';
+import { Vault, TFile, TAbstractFile, Platform, parseYaml } from 'obsidian';
 import { AskVaultSettings } from './Settings';
 import { LLMService } from './LLMService';
 import { WikiSchema } from './WikiSchema';
+import { IndexEntry } from './BM25Scorer';
 
 export interface IngestResult {
 	summary: string;
@@ -34,6 +35,7 @@ export class WikiService {
 	private wikiSchema: WikiSchema;
 	private isBusy: boolean = false;
 	private ingestCancelled: boolean = false;
+	private cachedIndex: IndexEntry[] | null = null;
 	private updateQueue: Set<string> = new Set();
 	private debounceTimer: ReturnType<typeof setTimeout> | null = null;
 	private eventRefs: Array<ReturnType<typeof setTimeout>> = [];
@@ -141,6 +143,11 @@ export class WikiService {
 
 	// --- Log Parsing ---
 
+	async hasIngestLog(): Promise<boolean> {
+		const logContent = await this.readWikiFile('log.md');
+		return !!logContent && logContent.includes('ingest');
+	}
+
 	private async getIngestLog(): Promise<Map<string, number>> {
 		const logContent = await this.readWikiFile('log.md');
 		const entries = new Map<string, number>();
@@ -184,7 +191,32 @@ export class WikiService {
 		return content || '';
 	}
 
+	private parseIndex(content: string): IndexEntry[] {
+		const entries: IndexEntry[] = [];
+		const regex = /^- (.+\.md) \[tags:([^\]]*) related:([^\]]*)\] -- (.+)$/gm;
+		let match: RegExpExecArray | null;
+		while ((match = regex.exec(content)) !== null) {
+			const path = match[1];
+			const tags = match[2];
+			const related = match[3];
+			const summary = match[4];
+			const text = summary + ' ' + tags.replace(/,/g, ' ') + ' ' + related.replace(/,/g, ' ');
+			entries.push({ path, text: text.trim() });
+		}
+		return entries;
+	}
+
+	async getIndexEntries(): Promise<IndexEntry[]> {
+		if (this.cachedIndex !== null) {
+			return this.cachedIndex;
+		}
+		const content = await this.readIndex();
+		this.cachedIndex = this.parseIndex(content);
+		return this.cachedIndex;
+	}
+
 	private async rebuildIndex(): Promise<void> {
+		this.cachedIndex = null;
 		const sections: Record<string, string[]> = {
 			sources: [],
 			entities: [],
@@ -200,10 +232,51 @@ export class WikiService {
 			const files = this.vault.getFiles().filter(f => f.path.startsWith(dirPath + '/'));
 			for (const file of files) {
 				const content = await this.vault.read(file);
-				const firstLine = content.split('\n').find(l => l.trim() && !l.startsWith('---') && !l.startsWith('type:'));
-				const summary = firstLine?.replace(/^#+\s*/, '').trim() || file.basename;
 				const relPath = `${type}/${file.name}`;
-				sections[type].push(`- ${relPath} — ${summary}`);
+
+				let tags: string[] = [];
+				let related: string[] = [];
+				let summary = file.basename;
+
+				try {
+					// Split content to isolate frontmatter between the two --- delimiters
+					const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+					if (fmMatch) {
+						const fmBlock = fmMatch[1];
+						const parsed = parseYaml(fmBlock);
+						if (parsed) {
+							tags = Array.isArray(parsed.tags) ? parsed.tags : [];
+							const rawRelated: unknown[] = Array.isArray(parsed.related) ? parsed.related : [];
+							related = rawRelated.map((r: unknown) =>
+								String(r).replace(/^\[\[/, '').replace(/\]\]$/, '')
+							);
+						}
+
+						// Body is everything after the closing ---
+						const body = content.substring(fmMatch[0].length);
+						const bodyLines = body.split('\n');
+						const firstBodyLine = bodyLines.find(l => l.trim() !== '');
+						if (firstBodyLine) {
+							summary = firstBodyLine.replace(/^#+\s*/, '').trim() || file.basename;
+						}
+					} else {
+						// No frontmatter found — fall back to legacy first-line extraction
+						const firstLine = content.split('\n').find(l =>
+							l.trim() && !l.startsWith('---') && !l.startsWith('type:')
+						);
+						summary = firstLine?.replace(/^#+\s*/, '').trim() || file.basename;
+					}
+				} catch {
+					// Frontmatter parse failed — fall back to legacy first-line extraction
+					const firstLine = content.split('\n').find(l =>
+						l.trim() && !l.startsWith('---') && !l.startsWith('type:')
+					);
+					summary = firstLine?.replace(/^#+\s*/, '').trim() || file.basename;
+				}
+
+				const tagsStr = tags.join(',');
+				const relatedStr = related.join(',');
+				sections[type].push(`- ${relPath} [tags:${tagsStr} related:${relatedStr}] -- ${summary}`);
 			}
 		}
 
@@ -219,7 +292,7 @@ export class WikiService {
 
 	// --- Ingest Operation ---
 
-	async ingest(progressCallback?: ProgressCallback): Promise<void> {
+	async ingest(progressCallback?: ProgressCallback, forceAll: boolean = false): Promise<void> {
 		if (this.isBusy) {
 			throw new Error('A wiki operation is already in progress.');
 		}
@@ -229,7 +302,7 @@ export class WikiService {
 		try {
 			await this.ensureWikiStructure();
 			const schema = await this.wikiSchema.getSchema();
-			const ingestLog = await this.getIngestLog();
+			const ingestLog = forceAll ? new Map<string, number>() : await this.getIngestLog();
 
 			const allFiles = this.vault.getFiles();
 			const sourceFiles = allFiles.filter(f => this.isSourceFile(f));
@@ -328,7 +401,7 @@ export class WikiService {
 		const now = new Date().toISOString().split('T')[0];
 
 		const sourceFileName = this.toFileName(file.basename);
-		const sourcePage = `---\ntype: source\nsource: "[[${file.path}]]"\ncreated: ${now}\nupdated: ${now}\ntags: []\nrelated: []\n---\n\n# ${file.basename}\n\n${result.summary}`;
+		const sourcePage = `---\ntype: source\nsource: "[[${file.path}]]"\ncreated: ${now}\nupdated: ${now}\ntags: [${file.extension}]\nrelated: []\n---\n\n# ${file.basename}\n\n${result.summary}`;
 		await this.writeWikiFile(`sources/${sourceFileName}.md`, sourcePage);
 		pagesTouched.push(`sources/${sourceFileName}.md`);
 
@@ -348,7 +421,8 @@ export class WikiService {
 					await this.writeWikiFile(entityPath, merged);
 				} else {
 					const related = [`[[sources/${sourceFileName}]]`];
-					const entityPage = `---\ntype: entity\ncreated: ${now}\nupdated: ${now}\ntags: []\nrelated: [${related.map(r => `"${r}"`).join(', ')}]\n---\n\n# ${entity.name}\n\n${entity.description}\n\n## Key Facts\n${entity.facts.map(f => `- ${f}`).join('\n')}\n\n## Relationships\n${entity.relationships.map(r => `- ${r}`).join('\n')}`;
+					const entityTags = [entity.name.toLowerCase(), 'entity'];
+					const entityPage = `---\ntype: entity\ncreated: ${now}\nupdated: ${now}\ntags: [${entityTags.join(', ')}]\nrelated: [${related.map(r => `"${r}"`).join(', ')}]\n---\n\n# ${entity.name}\n\n${entity.description}\n\n## Key Facts\n${entity.facts.map(f => `- ${f}`).join('\n')}\n\n## Relationships\n${entity.relationships.map(r => `- ${r}`).join('\n')}`;
 					await this.writeWikiFile(entityPath, entityPage);
 				}
 			})());
@@ -367,7 +441,8 @@ export class WikiService {
 					await this.writeWikiFile(conceptPath, merged);
 				} else {
 					const related = [`[[sources/${sourceFileName}]]`];
-					const conceptPage = `---\ntype: concept\ncreated: ${now}\nupdated: ${now}\ntags: []\nrelated: [${related.map(r => `"${r}"`).join(', ')}]\n---\n\n# ${concept.name}\n\n${concept.description}\n\n## Examples\n${concept.examples.map(e => `- ${e}`).join('\n')}`;
+					const conceptTags = [concept.name.toLowerCase(), 'concept'];
+					const conceptPage = `---\ntype: concept\ncreated: ${now}\nupdated: ${now}\ntags: [${conceptTags.join(', ')}]\nrelated: [${related.map(r => `"${r}"`).join(', ')}]\n---\n\n# ${concept.name}\n\n${concept.description}\n\n## Examples\n${concept.examples.map(e => `- ${e}`).join('\n')}`;
 					await this.writeWikiFile(conceptPath, conceptPage);
 				}
 			})());
@@ -412,14 +487,35 @@ export class WikiService {
 			return [];
 		}
 
+		// Try BM25 local scoring first
+		try {
+			const entries = await this.getIndexEntries();
+			if (entries.length > 0) {
+				const { BM25Scorer } = await import('./BM25Scorer');
+				const scorer = new BM25Scorer();
+				scorer.buildIndex(entries);
+				const results = scorer.score(question);
+				if (results.length > 0 && results[0].score > 0) {
+					console.log('[AskVault] BM25 scored pages:', results.map(r => r.path));
+					return results.map(r => r.path);
+				}
+				console.log('[AskVault] BM25 fallback: no term overlap, using LLM retrieval');
+			} else {
+				console.log('[AskVault] BM25 fallback: no parsed index entries, using LLM retrieval');
+			}
+		} catch (bm25Error) {
+			console.warn('[AskVault] BM25 scoring failed, falling back to LLM:', bm25Error);
+		}
+
+		// LLM fallback path
 		const schema = await this.wikiSchema.getSchema();
-		const systemPrompt = `${schema}\n\nYou are a wiki search engine. Given the wiki index and a user question, identify the most relevant wiki pages. Return ONLY a JSON array of file paths exactly as they appear in the index (e.g., ["sources/my-article.md", "entities/react.md"]). Return at most 5 pages. If no pages are relevant, return [].`;
+		const systemPrompt = `${schema}\n\nYou are a wiki search engine. Given the wiki index and a user question, identify the most relevant wiki pages. The index uses an enriched format where each entry looks like: "- path.md [tags:... related:...] -- summary". Return ONLY a JSON array of the file paths (the part before the brackets, e.g., ["sources/my-article.md", "entities/react.md"]). Return at most 5 pages. If no pages are relevant, return [].`;
 
 		const userPrompt = `Wiki Index:\n${index}\n\nQuestion: ${question}`;
 
 		try {
 			const raw = await this.llmService.callLLMRaw(systemPrompt, userPrompt, 500);
-			console.log('[AskVault] findRelevantPages raw response:', raw);
+			console.log('[AskVault] findRelevantPages LLM raw response:', raw);
 			let cleaned = raw.trim();
 			if (cleaned.startsWith('```')) {
 				cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
@@ -436,10 +532,10 @@ export class WikiService {
 				if (!clean.endsWith('.md')) clean += '.md';
 				return clean;
 			});
-			console.log('[AskVault] findRelevantPages normalized paths:', normalized);
+			console.log('[AskVault] findRelevantPages LLM normalized paths:', normalized);
 			return normalized;
 		} catch (error) {
-			console.error('[AskVault] findRelevantPages failed:', error);
+			console.error('[AskVault] findRelevantPages LLM failed:', error);
 			return [];
 		}
 	}
@@ -464,7 +560,7 @@ export class WikiService {
 		await this.ensureWikiStructure();
 		const now = new Date().toISOString().split('T')[0];
 		const fileName = this.toFileName(question.substring(0, 60));
-		const queryPage = `---\ntype: query\ncreated: ${now}\nupdated: ${now}\ntags: []\nrelated: []\n---\n\n# ${question}\n\n${answer}`;
+		const queryPage = `---\ntype: query\ncreated: ${now}\nupdated: ${now}\ntags: [query]\nrelated: []\n---\n\n# ${question}\n\n${answer}`;
 
 		await this.writeWikiFile(`queries/${fileName}.md`, queryPage);
 		await this.rebuildIndex();
